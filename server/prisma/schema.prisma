@@ -1,0 +1,58 @@
+// Prisma schema for Clouds ticketing backend.
+// Default datasource is SQLite for zero-config local dev.
+// For production, set DATABASE_URL to a Postgres connection string
+// and change provider to "postgresql" (see README).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Event {
+  id      String      @id @default(cuid())
+  name    String
+  venue   String
+  date    DateTime
+  tiers   PriceTier[]
+  tickets Ticket[]
+  createdAt DateTime  @default(now())
+}
+
+model PriceTier {
+  id        String   @id @default(cuid())
+  name      String
+  priceCents Int
+  startDate DateTime
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventId   String
+  tickets   Ticket[]
+}
+
+model Ticket {
+  id            String    @id @default(cuid())
+  token         String    @unique // signed JWT embedded in the QR code
+  event         Event     @relation(fields: [eventId], references: [id])
+  eventId       String
+  tier          PriceTier @relation(fields: [tierId], references: [id])
+  tierId        String
+  buyerEmail    String?
+  buyerName     String?
+  paymentMethod String    // "card" | "paypal"
+  paymentRef    String?   // Stripe PaymentIntent id or PayPal order id
+  status        String    @default("pending") // pending | paid | used | refunded
+  purchasedAt   DateTime?
+  scannedAt     DateTime?
+  scannedBy     String?
+  createdAt     DateTime  @default(now())
+}
+
+model Admin {
+  id           String @id @default(cuid())
+  email        String @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}

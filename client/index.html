@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CLOUDS — Techno Events</title>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://js.stripe.com/v3/"></script>
+<script src="https://www.paypal.com/sdk/js?client-id=YOUR_PAYPAL_CLIENT_ID&currency=USD"></script>
+<style>
+  /* --- styling identical to the prototype; trimmed here for brevity, --- */
+  /* --- full CSS is unchanged from the demo build.                    --- */
+  :root{--void:#0a0b0f;--fog-1:#161a24;--fog-2:#232a3a;--line:#333c50;--cyan:#6ee7ff;--magenta:#ff3d9a;--text:#c9d3e0;--text-dim:#7c8699;--white:#f3f6fb;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--void);color:var(--text);font-family:'Inter',sans-serif;}
+  h1,h2,h3{font-family:'Unbounded',sans-serif;color:var(--white);margin:0;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  button{font-family:inherit;cursor:pointer;}
+  nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content:space-between;padding:18px 28px;background:rgba(10,11,15,0.7);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,0.06);}
+  .logo{font-family:'Unbounded',sans-serif;font-weight:900;font-size:20px;color:var(--white);}
+  .logo span{color:var(--magenta);}
+  .navlinks button{background:none;border:none;color:var(--text-dim);font-size:13px;text-transform:uppercase;padding:8px 14px;border-radius:100px;}
+  .navlinks button.active,.navlinks button:hover{color:var(--white);background:rgba(255,255,255,0.06);}
+  main{padding-top:64px;}
+  section{display:none;min-height:calc(100vh - 64px);}
+  section.active{display:block;}
+  .wrap{max-width:1080px;margin:0 auto;padding:60px 28px;}
+  .event-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:20px;}
+  .event-card{background:linear-gradient(160deg,var(--fog-1),var(--fog-2));border:1px solid rgba(255,255,255,0.06);border-radius:18px;padding:24px;display:flex;flex-direction:column;gap:14px;}
+  .event-date{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--cyan);}
+  .tier-active{margin-top:auto;display:flex;justify-content:space-between;border-top:1px solid rgba(255,255,255,0.08);padding-top:14px;}
+  .tier-price{font-family:'IBM Plex Mono',monospace;font-size:20px;color:var(--white);}
+  .panel{background:var(--fog-1);border:1px solid rgba(255,255,255,0.06);border-radius:18px;padding:28px;margin-bottom:24px;}
+  select,input{width:100%;background:var(--void);border:1px solid var(--line);color:var(--white);border-radius:10px;padding:12px 14px;font-size:14px;margin-bottom:14px;}
+  .btn{border-radius:100px;padding:14px 28px;font-size:13px;font-weight:600;text-transform:uppercase;border:1px solid var(--line);background:transparent;color:var(--white);}
+  .btn-solid{background:var(--magenta);border-color:var(--magenta);color:#150009;}
+  #card-element{background:var(--void);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px;}
+  .scan-frame{position:relative;width:100%;max-width:420px;aspect-ratio:1/1;border-radius:20px;overflow:hidden;border:1px solid var(--line);background:#000;}
+  .scan-frame video, .scan-frame canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+  .scan-result{width:100%;max-width:420px;border-radius:14px;padding:18px 20px;font-size:14px;text-align:center;border:1px solid var(--line);margin-top:16px;}
+  .scan-result.valid{border-color:#4ade80;color:#4ade80;}
+  .scan-result.invalid{border-color:var(--magenta);color:var(--magenta);}
+  .scan-result.used{border-color:#f5a623;color:#f5a623;}
+  .qr-wrap{display:flex;justify-content:center;background:#fff;border-radius:10px;padding:14px;margin:14px 0;}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">CLOUD<span>S</span></div>
+  <div class="navlinks">
+    <button data-view="events" class="active">Events</button>
+    <button data-view="tickets">Tickets</button>
+    <button data-view="scan">Scan</button>
+    <button data-view="admin">Admin</button>
+  </div>
+</nav>
+
+<main>
+  <section id="events" class="active">
+    <div class="wrap">
+      <h2 style="margin-bottom:30px;">Events</h2>
+      <div id="events-list" class="event-grid"></div>
+    </div>
+  </section>
+
+  <section id="tickets">
+    <div class="wrap" style="max-width:520px;">
+      <h2 style="margin-bottom:24px;">Get your ticket</h2>
+      <div class="panel">
+        <select id="ticket-event-select"></select>
+        <div id="tier-picker"></div>
+        <input id="buyer-name" placeholder="Full name">
+        <input id="buyer-email" placeholder="Email">
+
+        <div style="display:flex;gap:8px;margin:16px 0;">
+          <button class="btn" id="tab-card" onclick="selectPay('card')">Card</button>
+          <button class="btn" id="tab-paypal" onclick="selectPay('paypal')">PayPal</button>
+        </div>
+
+        <div id="pay-card">
+          <div id="card-element"></div>
+          <button class="btn btn-solid" style="width:100%;" onclick="payWithStripe()">Pay with card</button>
+        </div>
+        <div id="pay-paypal" style="display:none;">
+          <div id="paypal-button-container"></div>
+        </div>
+        <div id="pay-status" class="mono" style="font-size:12px;color:var(--text-dim);margin-top:10px;"></div>
+      </div>
+      <div id="ticket-output"></div>
+    </div>
+  </section>
+
+  <section id="scan">
+    <div class="wrap" style="display:flex;flex-direction:column;align-items:center;">
+      <h2 style="margin-bottom:24px;">Scan a ticket</h2>
+      <div id="scan-login" class="panel" style="max-width:360px;">
+        <input id="scan-admin-email" placeholder="Admin email">
+        <input id="scan-admin-password" type="password" placeholder="Password">
+        <button class="btn btn-solid" style="width:100%;" onclick="adminLogin('scan')">Sign in to scan</button>
+      </div>
+      <div id="scan-tool" style="display:none;flex-direction:column;align-items:center;">
+        <div class="scan-frame">
+          <video id="scan-video" playsinline muted></video>
+          <canvas id="scan-canvas" style="display:none;"></canvas>
+        </div>
+        <button id="scan-toggle" class="btn" style="margin-top:16px;">Start camera</button>
+        <div id="scan-result" class="scan-result" style="display:none;"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="admin">
+    <div class="wrap">
+      <h2 style="margin-bottom:24px;">Admin</h2>
+      <div id="admin-login" class="panel" style="max-width:360px;">
+        <input id="admin-email" placeholder="Admin email">
+        <input id="admin-password" type="password" placeholder="Password">
+        <button class="btn btn-solid" style="width:100%;" onclick="adminLogin('admin')">Sign in</button>
+      </div>
+      <div id="admin-tool" style="display:none;">
+        <div class="panel">
+          <h3 style="margin-bottom:16px;">Add event</h3>
+          <input id="adm-name" placeholder="Event name">
+          <input id="adm-venue" placeholder="Venue">
+          <input id="adm-date" type="date">
+          <div id="adm-tiers"></div>
+          <button class="btn" onclick="addTierRow()">+ Add price stage</button>
+          <button class="btn btn-solid" style="width:100%;margin-top:16px;" onclick="saveEvent()">Publish event</button>
+        </div>
+        <div id="admin-events-list"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+const API = 'http://localhost:4000/api'; // point this at your deployed API URL in production
+let adminToken = localStorage.getItem('clouds_admin_token') || null; // ok here: this is the client shell, not a sandboxed artifact
+
+document.querySelectorAll('.navlinks button').forEach(b=>b.addEventListener('click', ()=>setView(b.dataset.view)));
+function setView(v){
+  document.querySelectorAll('section').forEach(s=>s.classList.remove('active'));
+  document.getElementById(v).classList.add('active');
+  document.querySelectorAll('.navlinks button').forEach(b=>b.classList.toggle('active', b.dataset.view===v));
+  if(v==='events') loadEvents();
+  if(v==='tickets') loadTicketFlow();
+}
+
+/* ---------------- EVENTS ---------------- */
+let cachedEvents = [];
+async function loadEvents(){
+  const res = await fetch(`${API}/events`);
+  cachedEvents = await res.json();
+  const el = document.getElementById('events-list');
+  el.innerHTML = cachedEvents.map(ev => `
+    <div class="event-card">
+      <div class="event-date mono">${new Date(ev.date).toLocaleDateString()}</div>
+      <h3>${ev.name}</h3>
+      <div style="color:var(--text-dim);font-size:13px;">${ev.venue}</div>
+      <div class="tier-active">
+        <div>${ev.activeTier.name}</div>
+        <div class="tier-price">$${(ev.activeTier.priceCents/100).toFixed(2)}</div>
+      </div>
+    </div>`).join('');
+}
+
+/* ---------------- TICKET PURCHASE ---------------- */
+let selectedEventId=null, selectedTierId=null, payMode='card', stripe, elements, cardElement;
+
+async function loadTicketFlow(){
+  if(cachedEvents.length===0) await loadEvents();
+  const sel = document.getElementById('ticket-event-select');
+  sel.innerHTML = cachedEvents.map(ev=>`<option value="${ev.id}">${ev.name}</option>`).join('');
+  sel.onchange = ()=>{ selectedEventId = sel.value; renderTiers(); };
+  selectedEventId = cachedEvents[0]?.id;
+  renderTiers();
+
+  if(!stripe && window.Stripe){
+    // Replace with your real publishable key (safe to expose client-side).
+    stripe = Stripe('pk_test_YOUR_PUBLISHABLE_KEY');
+    elements = stripe.elements();
+    cardElement = elements.create('card', { style: { base: { color: '#f3f6fb' } } });
+    cardElement.mount('#card-element');
+  }
+}
+function renderTiers(){
+  const ev = cachedEvents.find(e=>e.id===selectedEventId);
+  const wrap = document.getElementById('tier-picker');
+  if(!ev) return;
+  selectedTierId = ev.activeTier.id;
+  wrap.innerHTML = ev.tiers.map(t=>`
+    <div class="event-card" style="padding:10px 14px;flex-direction:row;justify-content:space-between;cursor:pointer;${t.id===selectedTierId?'border-color:var(--cyan);':''}" onclick="selectedTierId='${t.id}'; renderTiers();">
+      <span>${t.name}</span><span class="mono">$${(t.priceCents/100).toFixed(2)}</span>
+    </div>`).join('');
+}
+function selectPay(mode){
+  payMode = mode;
+  document.getElementById('pay-card').style.display = mode==='card' ? 'block' : 'none';
+  document.getElementById('pay-paypal').style.display = mode==='paypal' ? 'block' : 'none';
+  if(mode==='paypal') renderPaypalButton();
+}
+
+async function payWithStripe(){
+  const status = document.getElementById('pay-status');
+  status.textContent = 'Creating payment…';
+  const res = await fetch(`${API}/payments/stripe/create-intent`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      eventId: selectedEventId, tierId: selectedTierId,
+      buyerEmail: document.getElementById('buyer-email').value,
+      buyerName: document.getElementById('buyer-name').value,
+    })
+  });
+  const { clientSecret, ticketId, error } = await res.json();
+  if(error){ status.textContent = error; return; }
+
+  status.textContent = 'Confirming card…';
+  const result = await stripe.confirmCardPayment(clientSecret, { payment_method: { card: cardElement } });
+  if(result.error){ status.textContent = result.error.message; return; }
+
+  status.textContent = 'Payment confirmed — waiting for the ticket to finalize…';
+  // The Stripe webhook (server-side) marks the ticket paid; poll briefly until it's ready.
+  pollForTicket(ticketId);
+}
+
+function renderPaypalButton(){
+  const container = document.getElementById('paypal-button-container');
+  container.innerHTML = '';
+  if(!window.paypal) { container.textContent = 'PayPal SDK not loaded — add your client ID in the script tag.'; return; }
+  window.paypal.Buttons({
+    createOrder: async () => {
+      const res = await fetch(`${API}/payments/paypal/create-order`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          eventId: selectedEventId, tierId: selectedTierId,
+          buyerEmail: document.getElementById('buyer-email').value,
+          buyerName: document.getElementById('buyer-name').value,
+        })
+      });
+      const data = await res.json();
+      return data.orderId;
+    },
+    onApprove: async (data) => {
+      const res = await fetch(`${API}/payments/paypal/capture/${data.orderID}`, { method:'POST' });
+      const result = await res.json();
+      if(result.ticketId) renderTicketStub(result.ticketId, result.token);
+    }
+  }).render('#paypal-button-container');
+}
+
+async function pollForTicket(ticketId, attempts=0){
+  const res = await fetch(`${API}/payments/ticket/${ticketId}`);
+  const ticket = await res.json();
+  if(ticket.status === 'paid'){ renderTicketStub(ticketId, ticket.token); return; }
+  if(attempts > 15){ document.getElementById('pay-status').textContent = 'Still processing — refresh in a moment.'; return; }
+  setTimeout(()=>pollForTicket(ticketId, attempts+1), 1000);
+}
+
+async function renderTicketStub(ticketId, token){
+  const res = await fetch(`${API}/payments/ticket/${ticketId}`);
+  const ticket = await res.json();
+  document.getElementById('pay-status').textContent = '';
+  document.getElementById('ticket-output').innerHTML = `
+    <div class="panel">
+      <div>${ticket.event.name} — ${ticket.tier.name}</div>
+      <div class="qr-wrap" id="qr-target"></div>
+      <div class="mono" style="font-size:12px;color:var(--text-dim);">Ticket ID: ${ticket.id}</div>
+    </div>`;
+  new QRCode(document.getElementById('qr-target'), { text: token, width:160, height:160 });
+}
+
+/* ---------------- ADMIN AUTH ---------------- */
+async function adminLogin(context){
+  const emailId = context==='scan' ? 'scan-admin-email' : 'admin-email';
+  const passId = context==='scan' ? 'scan-admin-password' : 'admin-password';
+  const res = await fetch(`${API}/admin/login`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ email: document.getElementById(emailId).value, password: document.getElementById(passId).value })
+  });
+  const data = await res.json();
+  if(!data.token){ alert('Login failed'); return; }
+  adminToken = data.token;
+  localStorage.setItem('clouds_admin_token', adminToken);
+  if(context==='scan'){
+    document.getElementById('scan-login').style.display='none';
+    document.getElementById('scan-tool').style.display='flex';
+  } else {
+    document.getElementById('admin-login').style.display='none';
+    document.getElementById('admin-tool').style.display='block';
+    addTierRow();
+    loadAdminEvents();
+  }
+}
+
+/* ---------------- ADMIN: EVENTS CRUD ---------------- */
+function addTierRow(){
+  const wrap = document.getElementById('adm-tiers');
+  const row = document.createElement('div');
+  row.style.cssText='display:grid;grid-template-columns:1fr 80px 1fr;gap:8px;margin-bottom:8px;';
+  row.innerHTML = `<input placeholder="Stage name" class="t-name"><input placeholder="$" class="t-price"><input type="date" class="t-date">`;
+  wrap.appendChild(row);
+}
+async function saveEvent(){
+  const tiers = [...document.querySelectorAll('#adm-tiers > div')].map(r=>({
+    name: r.querySelector('.t-name').value,
+    price: r.querySelector('.t-price').value,
+    startDate: r.querySelector('.t-date').value,
+  }));
+  await fetch(`${API}/events`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json', 'Authorization':`Bearer ${adminToken}`},
+    body: JSON.stringify({
+      name: document.getElementById('adm-name').value,
+      venue: document.getElementById('adm-venue').value,
+      date: document.getElementById('adm-date').value,
+      tiers,
+    })
+  });
+  loadAdminEvents();
+}
+async function loadAdminEvents(){
+  const res = await fetch(`${API}/events`);
+  const events = await res.json();
+  document.getElementById('admin-events-list').innerHTML = `<div class="panel"><h3>Published</h3>${
+    events.map(ev=>`<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);">${ev.name} — ${ev.venue}</div>`).join('')
+  }</div>`;
+}
+
+/* ---------------- SCANNER ---------------- */
+let scanStream=null, scanning=false, lastScan=0;
+document.getElementById('scan-toggle').addEventListener('click', async ()=>{
+  const btn = document.getElementById('scan-toggle');
+  if(scanning){ scanning=false; scanStream?.getTracks().forEach(t=>t.stop()); btn.textContent='Start camera'; return; }
+  scanStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } });
+  const video = document.getElementById('scan-video');
+  video.srcObject = scanStream; await video.play();
+  scanning = true; btn.textContent='Stop camera';
+  requestAnimationFrame(scanLoop);
+});
+async function scanLoop(){
+  if(!scanning) return;
+  const video = document.getElementById('scan-video');
+  const canvas = document.getElementById('scan-canvas');
+  if(video.readyState===video.HAVE_ENOUGH_DATA){
+    canvas.width=video.videoWidth; canvas.height=video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video,0,0);
+    const img = ctx.getImageData(0,0,canvas.width,canvas.height);
+    const code = jsQR(img.data, img.width, img.height);
+    if(code && Date.now()-lastScan>1500){
+      lastScan = Date.now();
+      const res = await fetch(`${API}/scan`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':`Bearer ${adminToken}`},
+        body: JSON.stringify({ token: code.data })
+      });
+      const data = await res.json();
+      const el = document.getElementById('scan-result');
+      el.style.display='block';
+      el.className = `scan-result ${data.result}`;
+      el.textContent = data.result==='valid' ? '✓ Valid entry' : data.result==='used' ? '⚠ Already used' : `✕ ${data.reason || 'Invalid'}`;
+    }
+  }
+  requestAnimationFrame(scanLoop);
+}
+
+loadEvents();
+</script>
+</body>
+</html>
