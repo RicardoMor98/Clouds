@@ -40,15 +40,13 @@ It prints a `whsec_...` value — put that in `STRIPE_WEBHOOK_SECRET`.
 In production, add the same webhook URL in the Stripe Dashboard
 (Developers → Webhooks) listening for `payment_intent.succeeded`.
 
-### Card brands (Visa / Mastercard / etc.)
-The Stripe card element already accepts all major networks — Visa,
-Mastercard, Amex, Discover — with no per-brand code. If you want to restrict
-checkout to only Visa and Mastercard, that's a Dashboard setting, not a code
-change: **Settings → Payment methods → Cards → Manage**, then turn off the
-brands you don't want. This is account-wide, so it affects every charge on
-this Stripe account, not just Clouds ticket sales. Test card numbers per
-brand: Visa `4242 4242 4242 4242`, Mastercard `5555 5555 5555 4444`, Amex
-`3782 822463 10005` — any future expiry, any CVC.
+### Card brands: Visa and Mastercard only
+Checkout is configured for **Visa, Mastercard, and PayPal** — no American
+Express. The card element itself doesn't filter by brand, so this is
+enforced in your Stripe Dashboard: **Settings → Payment methods → Cards →
+Manage**, with every brand other than Visa and Mastercard turned off. This
+setting is account-wide, so it applies to any other charges on this Stripe
+account too, not just Clouds ticket sales.
 
 ### PayPal
 Get sandbox credentials at developer.paypal.com. Note: this build uses
